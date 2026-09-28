@@ -9,8 +9,8 @@
 //! 6. Rollback integrity: a failed batch transfer leaves every balance and the summary untouched.
 
 use crate::{MarketplaceRoyalties, SorobanForgeMarketplaceRoyaltiesClient, MAX_SETTLE_SALES};
-use proptest::prelude::*;
 use proptest::collection::vec as prop_vec;
+use proptest::prelude::*;
 use soroban_forge_shared_utils::ForgeError;
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::token::{Client as TokenClient, StellarAssetClient};
@@ -91,7 +91,9 @@ fn setup_batch_world(bps: u32, amounts: Vec<i128>) -> BatchWorld {
     let total: i128 = amounts.iter().sum();
     StellarAssetClient::new(&env, &token).mint(&payer, &total);
 
-    let sellers: Vec<Address> = (0..amounts.len()).map(|_| Address::generate(&env)).collect();
+    let sellers: Vec<Address> = (0..amounts.len())
+        .map(|_| Address::generate(&env))
+        .collect();
 
     let contract_id = env.register(MarketplaceRoyalties, ());
     let client = SorobanForgeMarketplaceRoyaltiesClient::new(&env, &contract_id);
