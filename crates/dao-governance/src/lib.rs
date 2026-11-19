@@ -277,6 +277,26 @@ pub trait SorobanForgeDaoGovernance {
         proposal_id: u64,
     ) -> Result<Proposal, soroban_forge_shared_utils::ForgeError>;
 
+    /// Read a read-only proposal status summary (read-only view).
+    ///
+    /// Returns the proposal's current state, voting-window information,
+    /// vote tally, and execution readiness. Unknown proposal identifiers
+    /// return `ForgeError::NotFound`.
+    ///
+    /// The response distinguishes:
+    /// - **executable**: proposal is `Succeeded` with dependencies met and
+    ///   voting deadline passed, ready for target execution.
+    /// - **retryable**: proposal is `Succeeded` whose target invocation
+    ///   previously failed; the bond remains in custody and execution can
+    ///   be re-attempted.
+    /// - **expired**: proposal is `Active` but the voting deadline has passed.
+    /// - **rejected**: proposal is `Defeated` (voting ended without majority).
+    /// - **terminal**: proposal is `Executed`, `Cancelled`, or `Queued`.
+    fn get_proposal_status(
+        env: Env,
+        proposal_id: u64,
+    ) -> Result<ProposalStatus, soroban_forge_shared_utils::ForgeError>;
+
     /// Return the total number of proposals created (read-only view).
     fn get_proposal_count(env: Env) -> u64;
 
@@ -414,6 +434,32 @@ pub struct Proposal {
     pub requires: soroban_sdk::Vec<u64>,
     /// Proposal whose execution blocks this one.
     pub conflicts_with: Option<u64>,
+}
+
+/// A read-only summary of a proposal's readiness state.
+///
+/// Returned by [`SorobanForgeDaoGovernance::get_proposal_status`].
+/// Distinguishes executable, retryable, expired, rejected, and terminal
+/// states where applicable.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ProposalStatus {
+    /// Unique proposal identifier.
+    pub proposal_id: u64,
+    /// Current lifecycle state of the proposal.
+    pub state: ProposalState,
+    /// Ledger timestamp at which voting closes (0 if proposal is not `Active`).
+    pub voting_ends: u64,
+    /// Tally of "for" votes in governance-token units.
+    pub for_votes: i128,
+    /// Tally of "against" votes in governance-token units.
+    pub against_votes: i128,
+    /// Whether the proposal can be executed now (i.e. `Succeeded` with
+    /// dependencies met and voting deadline passed).
+    pub is_executable: bool,
+    /// Whether the proposal is in a retryable state (e.g. `Succeeded` whose
+    /// target invocation previously failed; bond still in custody).
+    pub is_retryable: bool,
 }
 
 /// Dependency edges exposed to indexers independently of the full proposal.
@@ -922,6 +968,31 @@ impl DaoGovernance {
     /// Read a stored proposal by id (read-only view).
     pub fn get_proposal(env: Env, proposal_id: u64) -> Result<Proposal, ForgeError> {
         Self::get_proposal_impl(&env, proposal_id)
+    }
+
+    /// Read a read-only proposal status summary (read-only view).
+    pub fn get_proposal_status(env: Env, proposal_id: u64) -> Result<ProposalStatus, ForgeError> {
+        let proposal = Self::get_proposal_impl(&env, proposal_id)?;
+
+        let voting_ends = proposal.voting_ends;
+        let now = env.ledger().timestamp();
+        let voting_open = now < voting_ends;
+
+        let is_executable = matches!(proposal.state, ProposalState::Succeeded)
+            || (!voting_open && matches!(proposal.state, ProposalState::Active));
+
+        let is_retryable = matches!(proposal.state, ProposalState::Succeeded)
+            && proposal.bond_state == BondState::Posted;
+
+        Ok(ProposalStatus {
+            proposal_id,
+            state: proposal.state.clone(),
+            voting_ends,
+            for_votes: proposal.for_votes,
+            against_votes: proposal.against_votes,
+            is_executable,
+            is_retryable,
+        })
     }
 
     /// Return a proposal's dependency edges for indexers.
