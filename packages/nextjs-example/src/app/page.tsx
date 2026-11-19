@@ -16,9 +16,12 @@ import {
   initialTransactionState,
   transactionReducer,
   transitionDemoEscrow,
+  transitionDemoVesting,
   type DemoAccount,
   type DemoEscrowRecord,
+  type DemoVestingRecord,
   type ExecutionMode,
+  type ContractType,
 } from "./state";
 import VestingDashboard from "./vesting-dashboard";
 
@@ -113,6 +116,23 @@ export default function Home() {
     },
   });
   const [nextDemoId, setNextDemoId] = useState(2);
+
+  // Contract selector state
+  const [selectedContract, setSelectedContract] = useState<ContractType>("escrow");
+
+  // Demo / Local state for all six contracts
+  const [demoVestingSchedules, setDemoVestingSchedules] = useState<
+    Record<string, DemoVestingRecord>
+  >({});
+  const [multisigThreshold, setMultisigThreshold] = useState("2");
+  const [multisigOwners, setMultisigOwners] = useState(
+    "GDEMO_BUYER_7K4J3X9Q2W8M1N6P0R5T7V9X2Z4B6D8F,GDEMO_SELLER_8L5K4Y0R3X9N2P7Q1S6U8W0Y3A5C7E9G"
+  );
+  const [daoProposalId, setDaoProposalId] = useState("1");
+  const [subscriptionId, setSubscriptionId] = useState("1");
+  const [marketplaceRoyaltyBps, setMarketplaceRoyaltyBps] = useState("500");
+  const [marketplaceRecipient, setMarketplaceRecipient] =
+    "GDEMO_BENEFICIARY_8P7Q6R5S4T3U2V1W0X9Y8Z6A5B4C3D2";
 
   // Transaction State Machine
   const [txState, dispatchTx] = useReducer(
@@ -821,6 +841,23 @@ export default function Home() {
           </a>
         </div>
       </header>
+
+      {/* Contract Selector */}
+      <div className="mb-4">
+        <label className="sr-only">Contract</label>
+        <select
+          value={selectedContract}
+          onChange={(e) => setSelectedContract(e.target.value as ContractType)}
+          className="rounded border px-2 py-1 focus:border-blue-500 focus:outline-native"
+        >
+          <option value="escrow">Escrow</option>
+          <option value="vesting">Vesting</option>
+          <option value="multisig">Multi-Sig Wallet</option>
+          <option value="dao">DAO Governance</option>
+          <option value="subscription">Subscription Payments</option>
+          <option value="marketplace">Marketplace Royalties</option>
+        </select>
+      </div>
 
       {/* Transaction State Banner */}
       {txState.stage !== "idle" && (
